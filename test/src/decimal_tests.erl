@@ -2,13 +2,13 @@
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
-
+-include("decimal.hrl").
 list_test_() ->
     Opts = #{ precision => 5, rounding => round_half_up },
     Tests =
         [
-         {"1", {1, 0}},
-         {"-1", {-1, 0}}
+         {"1", #decimal{base = 1, exp = 0}},
+         {"-1", #decimal{base = -1, exp = 0}}
         ],
     [
      {V, fun() -> R = decimal:to_decimal(V, Opts) end}
@@ -19,26 +19,26 @@ binary_test_() ->
     Opts = #{ precision => 5, rounding => round_half_up },
     PosTests =
         [
-         {<<"1">>, {1, 0}},
-         {<<"123">>, {123, 0}},
-         {<<"1230">>, {123, 1}},
-         {<<"1.23">>, {123, -2}},
-         {<<"1.2300">>, {123, -2}},
-         {<<"1e0">>, {1, 0}},
-         {<<"12e1">>, {12, 1}},
-         {<<"12300e3">>, {123, 5}},
-         {<<"1.2300e0">>, {123, -2}},
-         {<<"1.2300e2">>, {123, 0}},
-         {<<"1.2300e-2">>, {123, -4}},
-         {<<"123.45600e-2">>, {123456, -5}},
-         {<<"1e-0">>, {1, 0}},
-         {<<"12e-1">>, {12, -1}},
-         {<<"12300e-3">>, {123, -1}},
-         {<<"1e+0">>, {1, 0}},
-         {<<"12e+1">>, {12, 1}},
-         {<<"12300e+3">>, {123, 5}}
+         {<<"1">>, #decimal{base = 1, exp = 0}},
+         {<<"123">>, #decimal{base = 123, exp = 0}},
+         {<<"1230">>, #decimal{base = 123, exp = 1}},
+         {<<"1.23">>, #decimal{base = 123, exp = -2}},
+         {<<"1.2300">>, #decimal{base = 123, exp = -2}},
+         {<<"1e0">>, #decimal{base = 1, exp = 0}},
+         {<<"12e1">>, #decimal{base = 12, exp = 1}},
+         {<<"12300e3">>, #decimal{base = 123, exp = 5}},
+         {<<"1.2300e0">>, #decimal{base = 123, exp = -2}},
+         {<<"1.2300e2">>, #decimal{base = 123, exp = 0}},
+         {<<"1.2300e-2">>, #decimal{base = 123, exp = -4}},
+         {<<"123.45600e-2">>, #decimal{base = 123456, exp = -5}},
+         {<<"1e-0">>, #decimal{base = 1, exp = 0}},
+         {<<"12e-1">>, #decimal{base = 12, exp = -1}},
+         {<<"12300e-3">>, #decimal{base = 123, exp = -1}},
+         {<<"1e+0">>, #decimal{base = 1, exp = 0}},
+         {<<"12e+1">>, #decimal{base = 12, exp = 1}},
+         {<<"12300e+3">>, #decimal{base = 123, exp = 5}}
         ],
-    NegTests = [{<<$-, V/binary>>, {-B, E}} || {V, {B, E}} <- PosTests],
+    NegTests = [{<<$-, V/binary>>, #decimal{base = -B, exp = E}} || {V, #decimal{base = B, exp = E}} <- PosTests],
     [
      {V, fun() -> R = decimal:to_decimal(V, Opts) end}
      || {V, R} <- PosTests ++ NegTests
@@ -279,80 +279,81 @@ repeate(Ch, N) ->
     << <<Ch>> || _ <- lists:seq(1, N)>>.
 
 minus_test() ->
-    ?assertEqual({-1, 0}, decimal:minus({1,0})),
-    ?assertEqual({1, 0}, decimal:minus({-1,0})).
+    ?assertEqual(#decimal{base = -1, exp = 0}, decimal:minus(#decimal{base = 1, exp = 0})),
+    ?assertEqual(#decimal{base = 1, exp = 0}, decimal:minus(#decimal{base = -1, exp = 0})).
 
 abs_test() ->
-    ?assertEqual({1, 0}, decimal:abs({1,0})),
-    ?assertEqual({1, 0}, decimal:abs({-1,0})).
+    ?assertEqual(#decimal{base = 1, exp = 0}, decimal:abs(#decimal{base = 1, exp = 0})),
+    ?assertEqual(#decimal{base = 1, exp = 0}, decimal:abs(#decimal{base = -1, exp = 0})).
 
 pretty_print_test_() ->
     Tests =
         [
-         {{1, 0}, <<"1.0">>},
-         {{1, 1}, <<"10.0">>},
-         {{1, 2}, <<"100.0">>},
-         {{1, 3}, <<"1000.0">>},
-         {{1, 4}, <<"10000.0">>},
-         {{1, 5}, <<"100000.0">>},
-         {{1, 6}, <<"1.0e6">>},
+         {#decimal{base = 1, exp = 0}, <<"1.0">>},
+         {#decimal{base = 1, exp = 1}, <<"10.0">>},
+         {#decimal{base = 1, exp = 2}, <<"100.0">>},
+         {#decimal{base = 1, exp = 3}, <<"1000.0">>},
+         {#decimal{base = 1, exp = 4}, <<"10000.0">>},
+         {#decimal{base = 1, exp = 5}, <<"100000.0">>},
+         {#decimal{base = 1, exp = 6}, <<"1.0e6">>},
 
-         {{1, -1}, <<"0.1">>},
-         {{1, -2}, <<"0.01">>},
-         {{1, -3}, <<"0.001">>},
-         {{1, -4}, <<"0.0001">>},
-         {{1, -5}, <<"0.00001">>},
-         {{1, -6}, <<"1.0e-6">>},
+         {#decimal{base = 1, exp = -1}, <<"0.1">>},
+         {#decimal{base = 1, exp = -2}, <<"0.01">>},
+         {#decimal{base = 1, exp = -3}, <<"0.001">>},
+         {#decimal{base = 1, exp = -4}, <<"0.0001">>},
+         {#decimal{base = 1, exp = -5}, <<"0.00001">>},
+         {#decimal{base = 1, exp = -6}, <<"1.0e-6">>},
 
-         {{123, 0}, <<"123.0">>},
-         {{123, 1}, <<"1230.0">>},
-         {{123, 2}, <<"12300.0">>},
-         {{123, 3}, <<"123000.0">>},
-         {{123, 4}, <<"1.23e6">>},
+         {#decimal{base = 123, exp = 0}, <<"123.0">>},
+         {#decimal{base = 123, exp = 1}, <<"1230.0">>},
+         {#decimal{base = 123, exp = 2}, <<"12300.0">>},
+         {#decimal{base = 123, exp = 3}, <<"123000.0">>},
+         {#decimal{base = 123, exp = 4}, <<"1.23e6">>},
 
-         {{123, -1}, <<"12.3">>},
-         {{123, -2}, <<"1.23">>},
-         {{123, -3}, <<"0.123">>},
-         {{123, -4}, <<"0.0123">>},
-         {{123, -5}, <<"0.00123">>},
-         {{123, -6}, <<"0.000123">>},
-         {{123, -7}, <<"0.0000123">>},
-         {{123, -8}, <<"1.23e-6">>}
+         {#decimal{base = 123, exp = -1}, <<"12.3">>},
+         {#decimal{base = 123, exp = -2}, <<"1.23">>},
+         {#decimal{base = 123, exp = -3}, <<"0.123">>},
+         {#decimal{base = 123, exp = -4}, <<"0.0123">>},
+         {#decimal{base = 123, exp = -5}, <<"0.00123">>},
+         {#decimal{base = 123, exp = -6}, <<"0.000123">>},
+         {#decimal{base = 123, exp = -7}, <<"0.0000123">>},
+         {#decimal{base = 123, exp = -8}, <<"1.23e-6">>}
         ],
-    NegTests = [{{-B, E}, <<$-, R/binary>>} || {{B, E}, R} <- Tests],
+    NegTests = [{#decimal{base = -B, exp = E}, <<$-, R/binary>>} || {#decimal{base = B, exp = E}, R} <- Tests],
     [
      {iolist_to_binary(io_lib:format("~pe~p", [B,E])),
       fun() ->
           R = decimal:to_binary(D)
       end}
-     || {D={B,E}, R} <- Tests ++ NegTests
+     || {D=#decimal{base = B, exp = E}, R} <- Tests ++ NegTests
     ].
 
 from_float_test_() ->
     Tests =
         [
-         {{1,  2}, 100},
-         {{1,  1}, 10},
-         {{1,  0}, 1.0},
-         {{0,  0}, 0.0},
-         {{1, -1}, 0.1},
-         {{1, -2}, 0.01},
-         {{1, -3}, 0.001},
-         {{1, -4}, 0.0001},
-         {{1, -5}, 0.00001},
-         {{1, -6}, 0.000001},
+         {#decimal{base = 1,  exp = 2}, 100},
+         {#decimal{base = 1,  exp = 1}, 10},
+         {#decimal{base = 1,  exp = 0}, 1.0},
+         {#decimal{base = 0,  exp = 0}, 0.0},
+         {#decimal{base = 1, exp = -1}, 0.1},
+         {#decimal{base = 1, exp = -2}, 0.01},
+         {#decimal{base = 1, exp = -3}, 0.001},
+         {#decimal{base = 1, exp = -4}, 0.0001},
+         {#decimal{base = 1, exp = -5}, 0.00001},
+         {#decimal{base = 1, exp = -6}, 0.000001},
 
-         {{185,  2}, 18500},
-         {{185,  1}, 1850},
-         {{185,  0}, 185.0},
-         {{185, -1}, 18.5},
-         {{185, -2}, 1.85},
-         {{185, -3}, 0.185},
-         {{185, -4}, 0.0185},
-         {{185, -5}, 0.00185},
-         {{185, -6}, 0.000185}
+         {#decimal{base = 185,  exp = 2}, 18500},
+         {#decimal{base = 185,  exp = 1}, 1850},
+         {#decimal{base = 185,  exp = 0}, 185.0},
+         {#decimal{base = 185, exp = -1}, 18.5},
+         {#decimal{base = 185, exp = -2}, 1.85},
+         {#decimal{base = 185, exp = -3}, 0.185},
+         {#decimal{base = 185, exp = -4}, 0.0185},
+         {#decimal{base = 185, exp = -5}, 0.00185},
+         {#decimal{base = 185, exp = -6}, 0.000185}
         ],
-    NegTests = [{{-B, E}, -F} || {{B, E}, F} <- Tests],
+
+    NegTests = [{#decimal{base = -B, exp = E}, -F} || {#decimal{base = B, exp = E}, F} <- Tests],
 
     Opts = #{precision => 100, rounding => round_half_up},
     [
@@ -387,19 +388,19 @@ error_badarg_test_() ->
 cmp_test_() ->
     Tests =
         [
-         { {0,0}, {0,0},   0 },
-         { {1,0}, {1,0},   0 },
-         { {-1,0}, {-1,0}, 0 },
-         { {0,0}, {-1,0},  1 },
-         { {1,0}, {0,0},   1 },
-         { {-1,0}, {0,0}, -1 },
-         { {0,0}, {1,0},  -1 },
-         { {1,0}, {2,-1},  1 },
+         { #decimal{base = 0,exp = 0}, #decimal{base = 0,exp = 0},   0 },
+         { #decimal{base = 1,exp = 0}, #decimal{base = 1,exp = 0},   0 },
+         { #decimal{base = -1,exp = 0}, #decimal{base = -1,exp = 0}, 0 },
+         { #decimal{base = 0,exp = 0}, #decimal{base = -1,exp = 0},  1 },
+         { #decimal{base = 1,exp = 0}, #decimal{base = 0,exp = 0},   1 },
+         { #decimal{base = -1,exp = 0}, #decimal{base = 0,exp = 0}, -1 },
+         { #decimal{base = 0,exp = 0}, #decimal{base = 1,exp = 0},  -1 },
+         { #decimal{base = 1,exp = 0}, #decimal{base = 2,exp = -1},  1 },
 
-         { {0, -100}, {0, 100}, 0},
-         { {10, 0}, {1, 1}, 0 },
-         { {123, -2}, {122, -2}, 1 },
-         { {-123, -2}, {-122, -2}, -1 }
+         { #decimal{base = 0, exp = -100}, #decimal{base = 0, exp = 100}, 0},
+         { #decimal{base = 10, exp = 0}, #decimal{base = 1, exp = 1}, 0 },
+         { #decimal{base = 123, exp = -2}, #decimal{base = 122, exp = -2}, 1 },
+         { #decimal{base = -123, exp = -2}, #decimal{base = -122, exp = -2}, -1 }
         ],
     Opts = #{precision => 100, rounding => round_half_up},
     [
@@ -436,33 +437,33 @@ cmp_test_() ->
 to_binary_test_() ->
     Tests =
         [
-         {true, {1, 0}, <<"1.0">>},
-         {true, {10, 0}, <<"10.0">>},
-         {true, {1, 6}, <<"1.0e6">>},
-         {true, {123, -2}, <<"1.23">>},
-         {true, {123456, -10}, <<"0.0000123456">>},
-         {true, {123456, -11}, <<"1.23456e-6">>},
+         {true, #decimal{base = 1, exp = 0}, <<"1.0">>},
+         {true, #decimal{base = 10, exp = 0}, <<"10.0">>},
+         {true, #decimal{base = 1, exp = 6}, <<"1.0e6">>},
+         {true, #decimal{base = 123, exp = -2}, <<"1.23">>},
+         {true, #decimal{base = 123456, exp = -10}, <<"0.0000123456">>},
+         {true, #decimal{base = 123456, exp = -11}, <<"1.23456e-6">>},
 
-         {true, {-1, 0}, <<"-1.0">>},
-         {true, {-10, 0}, <<"-10.0">>},
-         {true, {-1, 6}, <<"-1.0e6">>},
-         {true, {-123, -2}, <<"-1.23">>},
-         {true, {-123456, -10}, <<"-0.0000123456">>},
-         {true, {-123456, -11}, <<"-1.23456e-6">>},
+         {true, #decimal{base = -1, exp = 0}, <<"-1.0">>},
+         {true, #decimal{base = -10, exp = 0}, <<"-10.0">>},
+         {true, #decimal{base = -1, exp = 6}, <<"-1.0e6">>},
+         {true, #decimal{base = -123, exp = -2}, <<"-1.23">>},
+         {true, #decimal{base = -123456, exp = -10}, <<"-0.0000123456">>},
+         {true, #decimal{base = -123456, exp = -11}, <<"-1.23456e-6">>},
 
-         {false, {1, 0}, <<"1.0">>},
-         {false, {10, 0}, <<"10.0">>},
-         {false, {1, 6}, <<"1000000.0">>},
-         {false, {123, -2}, <<"1.23">>},
-         {false, {123456, -10}, <<"0.0000123456">>},
-         {false, {123456, -11}, <<"0.00000123456">>},
+         {false, #decimal{base = 1, exp = 0}, <<"1.0">>},
+         {false, #decimal{base = 10, exp = 0}, <<"10.0">>},
+         {false, #decimal{base = 1, exp = 6}, <<"1000000.0">>},
+         {false, #decimal{base = 123, exp = -2}, <<"1.23">>},
+         {false, #decimal{base = 123456, exp = -10}, <<"0.0000123456">>},
+         {false, #decimal{base = 123456, exp = -11}, <<"0.00000123456">>},
 
-         {false, {-1, 0}, <<"-1.0">>},
-         {false, {-10, 0}, <<"-10.0">>},
-         {false, {-1, 6}, <<"-1000000.0">>},
-         {false, {-123, -2}, <<"-1.23">>},
-         {false, {-123456, -10}, <<"-0.0000123456">>},
-         {false, {-123456, -11}, <<"-0.00000123456">>}
+         {false, #decimal{base = -1, exp = 0}, <<"-1.0">>},
+         {false, #decimal{base = -10, exp = 0}, <<"-10.0">>},
+         {false, #decimal{base = -1, exp = 6}, <<"-1000000.0">>},
+         {false, #decimal{base = -123, exp = -2}, <<"-1.23">>},
+         {false, #decimal{base = -123456, exp = -10}, <<"-0.0000123456">>},
+         {false, #decimal{base = -123456, exp = -11}, <<"-0.00000123456">>}
         ],
     [
      {iolist_to_binary(
@@ -484,19 +485,19 @@ to_decimal_test_() ->
     Opts = #{ precision => 5, rounding => round_half_up },
     Tests =
         [
-         {<<"from decimal">>, {1,0}, {1, 0}},
-         {<<"from deprecated decimal">>, {1,1,0}, {-1, 0}}
+         {<<"from decimal">>, #decimal{base = 1,exp = 0}, #decimal{base = 1, exp = 0}},
+         {<<"from deprecated decimal">>, {1,1,0}, #decimal{base = -1, exp = 0}}
         ],
     [
      {N, fun() -> R = decimal:to_decimal(V, Opts) end}
      || {N, V, R} <- Tests
     ] ++ [
        {<<"constructor">>, fun() ->
-           ?assertEqual({1,3}, decimal:to_decimal(1,3,Opts)),
-           ?assertEqual({1,0}, decimal:to_decimal(<<"+1">>,Opts)),
-           ?assertEqual({1,3}, decimal:to_decimal(<<"+1000">>,Opts)),
-           ?assertEqual({0,0}, decimal:to_decimal(<<"+0">>,Opts)),
-           ?assertEqual({5,-1}, decimal:to_decimal(<<"+0.5">>,Opts))
+           ?assertEqual( #decimal{base = 1,exp = 3}, decimal:to_decimal(1,3,Opts)),
+           ?assertEqual( #decimal{base = 1,exp = 0}, decimal:to_decimal(<<"+1">>,Opts)),
+           ?assertEqual( #decimal{base = 1,exp = 3}, decimal:to_decimal(<<"+1000">>,Opts)),
+           ?assertEqual( #decimal{base = 0,exp = 0}, decimal:to_decimal(<<"+0">>,Opts)),
+           ?assertEqual( #decimal{base = 5,exp = -1}, decimal:to_decimal(<<"+0.5">>,Opts))
        end}
     ].
 

@@ -1,6 +1,9 @@
 -ifndef(DECIMAL_HRL).
 -define(DECIMAL_HRL, true).
 
+
+-record(decimal, {base, exp}).
+
 %% =============================================================================
 %%% Common decimal functions
 %% =============================================================================
@@ -19,11 +22,6 @@
 
 -define(d_context, #{ precision => ?d_precision, rounding => ?d_rounding}).
 
--define(is_decimal(D),
-        is_tuple(D) andalso
-        tuple_size(D) =:= 2 andalso
-        is_integer(element(1, D)) andalso
-        is_integer(element(2, D))).
 
 -define(to_decimal(X), decimal:to_decimal(X, ?d_context)).
 -define(to_decimal(B,E), decimal:to_decimal(B,E, ?d_context)).
@@ -38,7 +36,7 @@
 -define(to_string(X), binary_to_list(?to_binary(X))).
 -define(to_float(X), binary_to_float(?to_binary(X))).
 
--define(d_zero,{0,0}).
+-define(d_zero,#decimal{base = 0, exp = 0}).
 -define(add(X,Y),decimal:add(?d_cast(X),?d_cast(Y))).
 -define(sub(X,Y),decimal:sub(?d_cast(X),?d_cast(Y))).
 -define(mult(X,Y),decimal:mult(?d_cast(X),?d_cast(Y))).

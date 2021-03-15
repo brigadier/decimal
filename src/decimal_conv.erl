@@ -13,15 +13,17 @@
 -type binary_opts() :: #{ pretty => boolean() }.
 -export_type([binary_opts/0]).
 
+-include("decimal.hrl").
+
 -spec from_binary(binary()) -> decimal:decimal().
 from_binary(Bin) ->
     parse_base(Bin, <<>>).
 
 -spec to_binary(decimal:decimal(), Opts) -> binary() when
       Opts :: binary_opts().
-to_binary({Int, 0}, _Opts) ->
+to_binary(#decimal{base = Int, exp = 0}, _Opts) ->
     <<(integer_to_binary(Int))/binary, ".0">>;
-to_binary({Int, E}, #{pretty := Pretty}) ->
+to_binary(#decimal{base = Int, exp = E}, #{pretty := Pretty}) ->
     Sign =
         case Int < 0 of
             true -> <<$->>;
@@ -70,7 +72,7 @@ parse_base(<<X, Rest/binary>>, Acc) when X >= $0, X =< $9 ->
 parse_base(<<X, Rest/binary>>, Acc) when X =:= $E; X =:= $e ->
     parse_exp(Rest, Acc, 0, <<>>);
 parse_base(<<>>, Acc) ->
-    {binary_to_integer(Acc),0};
+    #decimal{base = binary_to_integer(Acc), exp = 0};
 parse_base(_,_) ->
     error(badarg).
 
@@ -79,7 +81,7 @@ parse_fraction(<<X, Rest/binary>>, Acc, E) when X >= $0, X =< $9 ->
 parse_fraction(<<X, Rest/binary>>, Acc, E) when X =:= $E; X =:= $e ->
     parse_exp(Rest, Acc, E, <<>>);
 parse_fraction(<<>>, Acc, E) ->
-    {binary_to_integer(Acc), E};
+    #decimal{base = binary_to_integer(Acc), exp = E};
 parse_fraction(_,_,_) ->
     error(badarg).
 
@@ -90,7 +92,7 @@ parse_exp(<<$+, Rest/binary>>, Base, E, <<>>) ->
 parse_exp(<<X, Rest/binary>>, Base, E, Acc) when X >= $0, X =< $9 ->
     parse_exp(Rest, Base, E, <<Acc/binary, X>>);
 parse_exp(<<>>, Base, E, Acc) ->
-    {binary_to_integer(Base), E+binary_to_integer(Acc)};
+    #decimal{base = binary_to_integer(Base), exp = E+binary_to_integer(Acc)};
 parse_exp(_,_,_,_) ->
     error(badarg).
 
@@ -99,14 +101,14 @@ parse_exp(_,_,_,_) ->
 %% =============================================================================
 
 from_float(0.0) ->
-    {0, 0};
+    #decimal{base = 0, exp = 0};
 from_float(Float) when is_float(Float) ->
     {Frac, Exp} = mantissa_exponent(Float),
     {Place, Digits} = from_float_(Float, Exp, Frac),
-    Decimal = {B,E} = to_decimal(Place, [$0 + D || D <- Digits]),
+    _Decimal = {B, E} = to_decimal(Place, [$0 + D || D <- Digits]),
     case Float < 0.0 of
-        true -> {-B, E};
-        false -> Decimal
+        true -> #decimal{base = -B, exp = E};
+        false -> #decimal{base = B, exp = E}
     end.
 
 -define(BIG_POW, (1 bsl 52)).

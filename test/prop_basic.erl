@@ -32,7 +32,7 @@ non_zero_decimal() ->
     ?SUCHTHAT(Dec, decimal(), not is_zero(Dec)).
 
 decimal() ->
-    {integer(), integer()}.
+    #decimal{base = integer(), exp = integer()}.
 
 opts() ->
     ?LET({R,P}, {rounding_algorithm(), pos_integer()}, #{precision => P, rounding => R}).
@@ -42,4 +42,4 @@ rounding_algorithm() ->
 
 eq(A,B, #{precision := P}) ->
     Diff = decimal:abs(sub(decimal:abs(A),decimal:abs(B))),
-    fast_cmp(Diff, {1,-P}) =< 0 orelse io:format("A: ~p~nB: ~p~nDiff: ~p~nPrec: ~p~n", [A, B, Diff, P]) .
+    fast_cmp(Diff, #decimal{base = 1,exp = -P}) =< 0 orelse io:format("A: ~p~nB: ~p~nDiff: ~p~nPrec: ~p~n", [A, B, Diff, P]) .

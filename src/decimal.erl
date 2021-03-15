@@ -33,8 +33,9 @@
         ]).
 
 -compile(inline).
+-include("decimal.hrl").
 
--type decimal() :: {integer(), integer()}.
+-type decimal() :: #decimal{}.
 -type old_decimal() :: {0|1, non_neg_integer(), integer()}.
 -type rounding_algorithm() :: round_floor | round_ceiling |
                               round_half_up | round_half_down |
@@ -60,12 +61,11 @@
       Value :: integer() | float() | binary() | list() |
                decimal() | old_decimal(),
       Opts :: opts().
-to_decimal({Base, Exp}=Decimal, _Opts) when
-      is_integer(Base), is_integer(Exp) ->
+to_decimal(#decimal{}=Decimal, _Opts)->
     Decimal;
 to_decimal(Int, #{precision := Precision, rounding := Rounding}) when
       is_integer(Int) ->
-    round(Rounding, {Int, 0}, Precision);
+    round(Rounding, #decimal{base = Int, exp = 0}, Precision);
 to_decimal(Binary, #{precision := Precision, rounding := Rounding}) when
       is_binary(Binary) ->
     Decimal = decimal_conv:from_binary(Binary),
@@ -82,14 +82,14 @@ to_decimal(List, #{precision := Precision, rounding := Rounding}) when
 to_decimal({Sign, Base0, Exp}, _Opts) when
       is_integer(Sign), is_integer(Base0), is_integer(Exp) ->
     Base = case Sign of 1 -> -Base0; 0 -> Base0 end,
-    {Base, Exp}.
+    #decimal{base = Base, exp = Exp}.
 
 -spec to_decimal(Base, Exp, Opts) -> decimal() when
       Base :: integer(),
       Exp :: integer(),
       Opts :: opts().
 to_decimal(Base, Exp, _Opts) ->
-    {Base, Exp}.
+    #decimal{base = Base, exp = Exp}.
 
 -spec to_binary(decimal()) -> binary().
 to_binary(Decimal) ->
@@ -103,36 +103,36 @@ to_binary(Decimal, Opts) ->
 %% = Arith =====================================================================
 
 -spec add(decimal(), decimal()) -> decimal().
-add({Int1, E1}, {Int2, E2}) ->
+add(#decimal{base = Int1, exp = E1}, #decimal{base = Int2, exp = E2}) ->
     Emin = min(E1, E2),
-    {Int1 * pow_of_ten(E1 - Emin) +
+    #decimal{base = Int1 * pow_of_ten(E1 - Emin) +
      Int2 * pow_of_ten(E2 - Emin),
-     Emin}.
+     exp = Emin}.
 
 -spec sub(decimal(), decimal()) -> decimal().
 sub(A, B) ->
     add(A, minus(B)).
 
 -spec mult(decimal(), decimal()) -> decimal().
-mult({Int1, E1}, {Int2, E2}) ->
-    {Int1*Int2, E1+E2}.
+mult(#decimal{base = Int1, exp = E1}, #decimal{base = Int2, exp = E2}) ->
+    #decimal{base = Int1*Int2, exp = E1+E2}.
 
 -spec divide(decimal(), decimal(), opts()) -> decimal().
-divide({M, E}, {2, 0}, #{ precision := Precision, rounding := Rounding }) when (M band 1) == 0 ->
-    round(Rounding, {M bsr 1, E}, Precision);
-divide({M, E}, {2, 0}, #{ precision := Precision, rounding := Rounding }) ->
-    round(Rounding, {M * 5, E-1}, Precision);
-divide({BaseA, ExpA},{BaseB, ExpB}, #{ precision := Precision0, rounding := Rounding }) ->
+divide(#decimal{base = M, exp = E}, #decimal{base = 2, exp = 0}, #{ precision := Precision, rounding := Rounding }) when (M band 1) == 0 ->
+    round(Rounding, #decimal{base = M bsr 1, exp = E}, Precision);
+divide(#decimal{base = M, exp = E}, #decimal{base = 2, exp = 0}, #{ precision := Precision, rounding := Rounding }) ->
+    round(Rounding, #decimal{base = M * 5, exp = E-1}, Precision);
+divide(#decimal{base = BaseA, exp = ExpA},#decimal{base = BaseB, exp = ExpB}, #{ precision := Precision0, rounding := Rounding }) ->
     Precision = max(0, -(ExpB - ExpA)) + Precision0 + 1,
     BaseRes = BaseA * pow_of_ten(Precision) div BaseB,
-    round(Rounding, {BaseRes, ExpA - ExpB - Precision}, Precision0).
+    round(Rounding, #decimal{base = BaseRes, exp = ExpA - ExpB - Precision}, Precision0).
 
 -spec sqrt(decimal(), opts()) -> decimal() | no_return(). %% @throws error(badarith)
-sqrt({M, _E}, _Context) when M < 0 ->
+sqrt(#decimal{base = M, exp = _E}, _Context) when M < 0 ->
     error(badarith);
-sqrt({0, _E}, _Context) ->
-    {0, 0};
-sqrt({M, E}=Decimal, #{precision := Precision0} = Context) ->
+sqrt(#decimal{base = 0, exp = _E}, _Context) ->
+    #decimal{base = 0, exp = 0};
+sqrt(#decimal{base = M, exp = E}=Decimal, #{precision := Precision0} = Context) ->
     Precision = Precision0 + 1,
     CoefficientDigits = length(integer_to_list(M)),
     case E band 1 of
@@ -153,19 +153,19 @@ sqrt(Decimal, Context, Shift, M) ->
             sqrt(Decimal, Context, Shift, M div Operand, M rem Operand =:= 0)
     end.
 
-sqrt({_, E0}, #{precision := Precision, rounding := Rounding}, Shift, M, Exact) ->
+sqrt(#decimal{exp = E0}, #{precision := Precision, rounding := Rounding}, Shift, M, Exact) ->
     E = E0 bsr 1,
     N = sqrt_loop(M, pow_of_ten(Precision + 1)),
     Result = case Exact and (N * N =:= M) of
         true ->
             case Shift >= 0 of
                 true ->
-                    {N div pow_of_ten(Shift), E};
+                    #decimal{base = N div pow_of_ten(Shift), exp = E};
                 false ->
-                    {N * pow_of_ten(-Shift), E}
+                    #decimal{base = N * pow_of_ten(-Shift), exp = E}
             end;
         false ->
-            {N, E - Shift}
+            #decimal{base = N, exp = E - Shift}
     end,
     round(Rounding, Result, Precision).
 
@@ -181,21 +181,21 @@ sqrt_loop(M, N) ->
 %% = Compare ===================================================================
 
 -spec cmp(decimal(), decimal(), opts()) -> -1 | 0 | 1.
-cmp({0, _}, {0, _}, _Opts) ->
+cmp(#decimal{base = 0}, #decimal{base = 0}, _Opts) ->
     0;
-cmp({Int1, _}, {Int2, _}, _Opts) when Int1 >= 0, Int2 =< 0 ->
+cmp(#decimal{base = Int1}, #decimal{base = Int2}, _Opts) when Int1 >= 0, Int2 =< 0 ->
     1;
-cmp({Int1, _}, {Int2, _}, _Opts) when Int1 =< 0, Int2 >= 0 ->
+cmp(#decimal{base = Int1}, #decimal{base = Int2}, _Opts) when Int1 =< 0, Int2 >= 0 ->
     -1;
-cmp({Int, E}, {Int, E}, _Opts) ->
+cmp(#decimal{base = Int, exp = E}, #decimal{base = Int, exp = E}, _Opts) ->
     0;
-cmp({Int1, E}, {Int2, E}, _Opts) when Int1 > Int2 ->
+cmp(#decimal{base = Int1, exp = E}, #decimal{base = Int2, exp = E}, _Opts) when Int1 > Int2 ->
     1;
-cmp({Int1, E}, {Int2, E}, _Opts) when Int1 < Int2 ->
+cmp(#decimal{base = Int1, exp = E}, #decimal{base = Int2, exp = E}, _Opts) when Int1 < Int2 ->
     -1;
 cmp(A, B, #{ precision := Precision, rounding := Rounding }) ->
-    {Int1, E1} = round(Rounding, A, Precision),
-    {Int2, E2} = round(Rounding, B, Precision),
+    #decimal{base = Int1, exp = E1} = round(Rounding, A, Precision),
+    #decimal{base = Int2, exp = E2} = round(Rounding, B, Precision),
     Emin = min(E1, E2),
     B1 = Int1*pow_of_ten(E1-Emin),
     B2 = Int2*pow_of_ten(E2-Emin),
@@ -205,19 +205,19 @@ cmp(A, B, #{ precision := Precision, rounding := Rounding }) ->
     end.
 
 %% Fast compare without rounding
-fast_cmp({0, _}, {0, _}) ->
+fast_cmp(#decimal{base = 0}, #decimal{base = 0}) ->
     0;
-fast_cmp({Int1, _}, {Int2, _}) when Int1 >= 0, Int2 =< 0 ->
+fast_cmp(#decimal{base = Int1}, #decimal{base = Int2}) when Int1 >= 0, Int2 =< 0 ->
     1;
-fast_cmp({Int1, _}, {Int2, _}) when Int1 =< 0, Int2 >= 0 ->
+fast_cmp(#decimal{base = Int1}, #decimal{base = Int2}) when Int1 =< 0, Int2 >= 0 ->
     -1;
-fast_cmp({Int, E}, {Int, E}) ->
+fast_cmp(#decimal{base = Int, exp = E}, #decimal{base = Int, exp = E}) ->
     0;
-fast_cmp({Int1, E}, {Int2, E}) when Int1 > Int2 ->
+fast_cmp(#decimal{base = Int1, exp = E}, #decimal{base = Int2, exp = E}) when Int1 > Int2 ->
     1;
-fast_cmp({Int1, E}, {Int2, E}) when Int1 < Int2 ->
+fast_cmp(#decimal{base = Int1, exp = E}, #decimal{base = Int2, exp = E}) when Int1 < Int2 ->
     -1;
-fast_cmp({Int1, E1}, {Int2, E2}) ->
+fast_cmp(#decimal{base = Int1, exp = E1}, #decimal{base = Int2, exp = E2}) ->
     Emin = min(E1, E2),
     B1 = Int1*pow_of_ten(E1-Emin),
     B2 = Int2*pow_of_ten(E2-Emin),
@@ -229,29 +229,29 @@ fast_cmp({Int1, E1}, {Int2, E2}) ->
 %% = Utils =====================================================================
 
 -spec is_zero(decimal()) -> boolean().
-is_zero({0, _}) -> true;
+is_zero(#decimal{base = 0}) -> true;
 is_zero(_) -> false.
 
 -spec minus(decimal()) -> decimal().
-minus({Int, E}) ->
-    {-Int, E}.
+minus(#decimal{base = Int, exp = E}) ->
+    #decimal{base = -Int, exp = E}.
 
 -spec abs(decimal()) -> decimal().
-abs({Int, E}) ->
-    {erlang:abs(Int), E}.
+abs(#decimal{base = Int, exp = E}) ->
+    #decimal{base = erlang:abs(Int), exp = E}.
 
 -spec reduce(decimal()) -> decimal().
-reduce({Int, E}) ->
+reduce(#decimal{base = Int, exp = E}) ->
     reduce_(Int, E).
-reduce_(0, _E) -> {0, 0};
+reduce_(0, _E) -> #decimal{base = 0, exp = 0};
 reduce_(Int, E) ->
     case Int rem 10 of
         0 -> reduce_(Int div 10, E+1);
-        _ -> {Int, E}
+        _ -> #decimal{base = Int, exp = E}
     end.
 
 -spec round(rounding_algorithm(), decimal(), non_neg_integer()) -> decimal().
-round(Rounding, {Int, E}=Decimal, Precision) ->
+round(Rounding, #decimal{base = Int, exp = E}=Decimal, Precision) ->
     reduce(
         case -Precision-E of
             Delta when Delta > 0 ->
@@ -300,8 +300,8 @@ round_(Rounding, Int, E, Delta) ->
         end,
     zero_exp_(Base, E+Delta).
 
-zero_exp_(0, _Exp) -> {0,0};
-zero_exp_(Base, Exp) -> {Base, Exp}.
+zero_exp_(0, _Exp) -> #decimal{base = 0,exp = 0};
+zero_exp_(Base, Exp) -> #decimal{base = Base, exp = Exp}.
 
 %% =============================================================================
 %%% Internal functions
